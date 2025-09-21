@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Incident Reporting & Risk Management - Single File</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    body{padding:20px}
+    .question-card{margin-bottom:10px}
+    .heat-cell{width:40px;height:40px;display:flex;align-items:center;justify-content:center;border:1px solid #ccc}
+    .heat-row{display:flex}
+    .small-muted{font-size:0.85rem;color:#666}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1 class="mb-3">Incident Reporting & Risk Management</h1>
+
+    <div class="row">
+      <div class="col-md-5">
+        <h4>1) Costruisci il questionario (Admin)</h4>
+        <div id="builder"></div>
+        <div class="d-flex gap-2 mt-2">
+          <button id="addText" class="btn btn-outline-primary btn-sm">Aggiungi input testo</button>
+          <button id="addSelect" class="btn btn-outline-secondary btn-sm">Aggiungi select</button>
+          <button id="addCheckbox" class="btn btn-outline-success btn-sm">Aggiungi checkbox</button>
+          <button id="addCause" class="btn btn-outline-warning btn-sm">Aggiungi campo causa (tag)</button>
+        </div>
+        <div class="mt-3">
+          <button id="saveTemplate" class="btn btn-primary btn-sm">Salva template (localStorage)</button>
+          <button id="clearTemplate" class="btn btn-danger btn-sm">Pulisci template</button>
+        </div>
+
+        <hr>
+        <h4>2) Compila un incident report</h4>
+        <div id="reportArea"></div>
+        <div class="mt-2">
+          <button id="startReport" class="btn btn-success btn-sm">Avvia report</button>
+        </div>
+
+      </div>
+
+      <div class="col-md-7">
+        <h4>3) Report inviati</h4>
+        <div id="reportsTable"></div>
+        <div class="mt-2">
+          <button id="exportCSV" class="btn btn-outline-dark btn-sm">Esporta CSV</button>
+          <button id="clearReports" class="btn btn-outline-danger btn-sm">Elimina tutti i report</button>
+        </div>
+
+        <hr>
+        <h4>4) Root Cause Analysis (RCA) - Pareto & Analisi</h4>
+        <canvas id="paretoChart" height="160"></canvas>
+        <div class="small-muted mt-1">Il grafico mostra le cause più frequenti (tag 'causa').</div>
+
+        <hr>
+        <h4>5) Risk Matrix</h4>
+        <div id="riskMatrix" class="mb-3"></div>
+        <div class="small-muted">Assegna Likelihood (Probabilità) e Impact (Impatto) per ogni report. Score = L x I.</div>
+      </div>
+    </div>
+  </div>
+
+<script>
+// Minimal single-file incident reporting + RCA + risk matrix
+// Data model saved in localStorage under keys: ir_template, ir_reports
+
+const builder = document.getElementById('builder');
+const reportArea = document.getElementById('reportArea');
+const reportsTable = document.getElementById('reportsTable');
+let template = loadTemplate();
+let reports = loadReports();
+
+function loadTemplate(){
+  try { return JSON.parse(localStorage.getItem('ir_template')||'[]'); } catch(e){return []}
+}
+function saveTemplate(){
+  localStorage.setItem('ir_template', JSON.stringify(template));
+}
+function loadReports(){
+  try { return JSON.parse(localStorage.getItem('ir_reports')||'[]'); } catch(e){return []}
+}
+function saveReports(){
+  localStorage.setItem('ir_reports', JSON.stringify(reports));
+}
+
+// UI builder functions
+function renderBuilder(){
+  builder.innerHTML = '';
+  template.forEach((q, idx)=>{
+    const div = document.createElement('div');
+    div.className = 'card p-2 question-card';
+    div.innerHTML = `
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <strong>${q.label}</strong> <span class="small-muted">[${q.type}]</span>
+          ${q.options ? '<div class="small-muted">Opzioni: '+q.options.join(', ')+'</div>' : ''}
+        </div>
+        <div>
+          <button class="btn btn-sm btn-outline-danger" data-idx="${idx}">Elimina</button>
+        </div>
+      </div>`;
+    builder.appendChild(div);
+  });
+  builder.querySelectorAll('button[data-idx]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      template.splice(btn.dataset.idx,1);
+      saveTemplate(); renderBuilder();
+    });
+  });
+}
+
+function addQuestion(type){
+  const label = prompt('Label della domanda (es: "Descrizione incidente", "Causa primaria")');
+  if(!label) return;
+  const q = {type, label};
+  if(type==='select' || type==='checkbox'){
+    const opts = prompt('Inserisci le opzioni separate da virgola (es: Op1,Op2,Op3)');
+    q.options = opts ? opts.split(',').map(s=>s.trim()).filter(Boolean) : [];
+  }
+  // 'cause' type is a tag field: user can add one or more causes
+  template.push(q); saveTemplate(); renderBuilder();
+}
+
+// Report form rendering
+function renderReportForm(){
+  reportArea.innerHTML = '';
+  if(template.length===0){
+    reportArea.innerHTML = '<div class="alert alert-warning">Nessun template: crea prima delle domande nella sezione "Costruisci il questionario".</div>';
+    return;
+  }
+  const form = document.createElement('form');
+  form.id = 'irForm';
+  template.forEach((q, idx)=>{
+    const fdiv = document.createElement('div');
+    fdiv.className = 'mb-2';
+    const label = document.createElement('label'); label.innerText = q.label; label.className='form-label';
+    fdiv.appendChild(label);
+    if(q.type==='text'){
+      const inp = document.createElement('input'); inp.className='form-control'; inp.name = 'q'+idx; inp.type='text';
+      fdiv.appendChild(inp);
+    } else if(q.type==='select'){
+      const sel = document.createElement('select'); sel.className='form-select'; sel.name='q'+idx;
+      q.options.forEach(o=>{ const opt = document.createElement('option'); opt.value=o; opt.innerText=o; sel.appendChild(opt); });
+      fdiv.appendChild(sel);
+    } else if(q.type==='checkbox'){
+      q.options.forEach((o,optIdx)=>{
+        const chk = document.createElement('div'); chk.className='form-check';
+        chk.innerHTML = `<input class="form-check-input" type="checkbox" name="q${idx}" value="${o}" id="q${idx}o${optIdx}"><label class="form-check-label" for="q${idx}o${optIdx}">${o}</label>`;
+        fdiv.appendChild(chk);
+      });
+    } else if(q.type==='cause'){
+      // allow user to add multiple cause tags
+      const wrap = document.createElement('div');
+      wrap.innerHTML = `<div class="d-flex gap-2"><input class="form-control form-control-sm cause-input" placeholder="Aggiungi causa e premi Enter"></div><div class="mt-1 cause-list small-muted"></div>`;
+      fdiv.appendChild(wrap);
+      // we'll handle tag entry on form creation
+    }
+    form.appendChild(fdiv);
+  });
+  // add likelihood & impact inputs
+  const riskDiv = document.createElement('div'); riskDiv.className='mb-2';
+  riskDiv.innerHTML = `
+    <label class="form-label">Probabilità (1-5)</label>
+    <select name="likelihood" class="form-select form-select-sm mb-1">
+      <option>1</option><option>2</option><option>3</option><option>4</option><option>5</option>
+    </select>
+    <label class="form-label">Impatto (1-5)</label>
+    <select name="impact" class="form-select form-select-sm">
+      <option>1</option><option>2</option><option>3</option><option>4</option><option>5</option>
+    </select>
+  `;
+  form.appendChild(riskDiv);
+  const submit = document.createElement('button'); submit.className='btn btn-primary btn-sm mt-2'; submit.innerText='Invia report';
+  form.appendChild(submit);
+  reportArea.appendChild(form);
+
+  // tag handling for cause inputs
+  form.querySelectorAll('.cause-input').forEach((inp,i)=>{
+    const list = inp.parentElement.parentElement.querySelector('.cause-list');
+    const tags = [];
+    inp.addEventListener('keydown', (e)=>{
+      if(e.key==='Enter'){
+        e.preventDefault(); const v = inp.value.trim(); if(!v) return; tags.push(v); inp.value=''; renderTags();
+      }
+    });
+    function renderTags(){
+      list.innerHTML = tags.map((t,ti)=>`<span class="badge bg-secondary me-1">${t} <a href='#' data-ti='${ti}' class='text-light del-tag'>×</a></span>`).join(' ');
+      list.querySelectorAll('.del-tag').forEach(a=>{
+        a.addEventListener('click',(ev)=>{ev.preventDefault(); tags.splice(a.dataset.ti,1); renderTags();});
+      });
+    }
+    // attach to input element for later serialization
+    inp._tags = tags;
+  });
+
+  form.addEventListener('submit', (e)=>{
+    e.preventDefault();
+    const fd = new FormData(form);
+    const obj = {id:Date.now(), created:new Date().toISOString(), answers:{}, likelihood:parseInt(fd.get('likelihood')), impact:parseInt(fd.get('impact'))};
+    template.forEach((q, idx)=>{
+      if(q.type==='text' || q.type==='select') obj.answers[q.label] = fd.get('q'+idx)||'';
+      else if(q.type==='checkbox') obj.answers[q.label] = fd.getAll('q'+idx);
+      else if(q.type==='cause'){
+        const inp = form.querySelectorAll('.cause-input')[0];
+        obj.answers[q.label] = inp && inp._tags ? [...inp._tags] : [];
+      }
+    });
+    obj.riskScore = obj.likelihood * obj.impact;
+    reports.push(obj); saveReports(); renderReportsTable(); renderPareto(); renderRiskMatrix();
+    alert('Report salvato!'); form.reset(); // reset tags arrays
+    form.querySelectorAll('.cause-input').forEach(i=>{ if(i._tags) i._tags.length=0; const l = i.parentElement.parentElement.querySelector('.cause-list'); if(l) l.innerHTML=''; });
+  });
+}
+
+function renderReportsTable(){
+  if(reports.length===0){ reportsTable.innerHTML = '<div class="alert alert-info">Nessun report inviato.</div>'; return; }
+  const tbl = document.createElement('table'); tbl.className='table table-sm';
+  const thead = document.createElement('thead'); thead.innerHTML = '<tr><th>#</th><th>Data</th><th>Risposte</th><th>Risk Score</th><th>Azioni</th></tr>';
+  const tbody = document.createElement('tbody');
+  reports.slice().reverse().forEach((r, i)=>{
+    const tr = document.createElement('tr');
+    const td0 = document.createElement('td'); td0.innerText = reports.length - i;
+    const td1 = document.createElement('td'); td1.innerText = new Date(r.created).toLocaleString();
+    const td2 = document.createElement('td'); td2.innerHTML = Object.entries(r.answers).map(([k,v])=>`<strong>${k}:</strong> ${Array.isArray(v)?v.join(', '):v}`).join('<br>');
+    const td3 = document.createElement('td'); td3.innerText = r.riskScore;
+    const td4 = document.createElement('td'); td4.innerHTML = `<button class='btn btn-sm btn-outline-danger del-report' data-id='${r.id}'>Elimina</button>`;
+    tr.append(td0,td1,td2,td3,td4);
+    tbody.appendChild(tr);
+  });
+  tbl.appendChild(thead); tbl.appendChild(tbody); reportsTable.innerHTML=''; reportsTable.appendChild(tbl);
+  reportsTable.querySelectorAll('.del-report').forEach(b=>{ b.addEventListener('click', ()=>{ const id=parseInt(b.dataset.id); reports = reports.filter(r=>r.id!==id); saveReports(); renderReportsTable(); renderPareto(); renderRiskMatrix(); }); });
+}
+
+// Pareto chart (causes frequency)
+let paretoChart = null;
+function renderPareto(){
+  // collect all cause tags across reports
+  const counter = {};
+  reports.forEach(r=>{
+    for(const val of Object.values(r.answers)){
+      if(Array.isArray(val)){
+        val.forEach(tag=>{ if(!tag) return; counter[tag] = (counter[tag]||0)+1; });
+      }
+    }
+  });
+  const entries = Object.entries(counter).sort((a,b)=>b[1]-a[1]);
+  const labels = entries.map(e=>e[0]);
+  const counts = entries.map(e=>e[1]);
+  // cumulative percent
+  const total = counts.reduce((a,b)=>a+b,0) || 1;
+  let cum=0; const cumPct = counts.map(c=>{ cum+=c; return +(cum/total*100).toFixed(1); });
+
+  const ctx = document.getElementById('paretoChart').getContext('2d');
+  if(paretoChart) paretoChart.destroy();
+  paretoChart = new Chart(ctx, {
+    data: {
+      labels: labels,
+      datasets: [
+        { type:'bar', label:'Occorrenze', data: counts, yAxisID:'y' },
+        { type:'line', label:'Cum %', data: cumPct, yAxisID:'y1', tension:0.3, borderDash:[5,5], fill:false }
+      ]
+    },
+    options: {
+      responsive:true,
+      scales: {
+        y: { position:'left', title:{display:true,text:'Occorrenze'}, beginAtZero:true },
+        y1: { position:'right', title:{display:true,text:'Cumul %'}, min:0, max:100, grid:{display:false} }
+      },
+      plugins:{legend:{position:'top'}}
+    }
+  });
+}
+
+// Risk matrix rendering (heatmap 5x5)
+function renderRiskMatrix(){
+  const container = document.getElementById('riskMatrix'); container.innerHTML='';
+  // build 5x5 array of counts by score
+  const grid = Array.from({length:5},()=>Array(5).fill(0));
+  reports.forEach(r=>{
+    const l = Math.max(1,Math.min(5, r.likelihood||1));
+    const i = Math.max(1,Math.min(5, r.impact||1));
+    grid[5-i][l-1] += 1; // row: impact descending, col: likelihood ascending
+  });
+  // create display
+  for(let row=0; row<5; row++){
+    const rowDiv = document.createElement('div'); rowDiv.className='heat-row';
+    for(let col=0; col<5; col++){
+      const cell = document.createElement('div'); cell.className='heat-cell';
+      const val = grid[row][col];
+      cell.innerText = val||'';
+      // color scale simple: 0 transparent, 1-2 light, 3-5 medium, >5 strong
+      if(val===0) cell.style.background='transparent';
+      else if(val<=2) cell.style.background='rgba(255,235,205,0.6)';
+      else if(val<=5) cell.style.background='rgba(255,165,0,0.6)';
+      else cell.style.background='rgba(220,20,60,0.6)';
+      rowDiv.appendChild(cell);
+    }
+    container.appendChild(rowDiv);
+  }
+  // legend and axes labels
+  const legend = document.createElement('div'); legend.className='mt-2 small-muted';
+  legend.innerHTML = '<strong>Impatto ↑</strong> &nbsp;&nbsp;&nbsp; Probabilità →';
+  container.appendChild(legend);
+}
+
+// CSV export
+function exportCSV(){
+  if(reports.length===0){ alert('Nessun report da esportare'); return; }
+  const keys = new Set();
+  reports.forEach(r=> Object.keys(r.answers).forEach(k=>keys.add(k)));
+  const header = ['id','created','likelihood','impact','riskScore',...Array.from(keys)];
+  const rows = reports.map(r=>{
+    const base = [r.id, r.created, r.likelihood, r.impact, r.riskScore];
+    const answers = Array.from(keys).map(k=>{
+      const v = r.answers[k]; return Array.isArray(v)? '"'+v.join('|')+'"' : '"'+(v||'')+'"';
+    });
+    return base.concat(answers).join(',');
+  });
+  const csv = [header.join(','), ...rows].join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = 'incident_reports.csv'; a.click(); URL.revokeObjectURL(url);
+}
+
+// Buttons
+document.getElementById('addText').addEventListener('click', ()=>addQuestion('text'));
+document.getElementById('addSelect').addEventListener('click', ()=>addQuestion('select'));
+document.getElementById('addCheckbox').addEventListener('click', ()=>addQuestion('checkbox'));
+document.getElementById('addCause').addEventListener('click', ()=>addQuestion('cause'));
+document.getElementById('saveTemplate').addEventListener('click', ()=>{ saveTemplate(); alert('Template salvato.'); });
+document.getElementById('clearTemplate').addEventListener('click', ()=>{ if(confirm('Eliminare template?')){ template=[]; saveTemplate(); renderBuilder(); renderReportForm(); } });
+
+document.getElementById('startReport').addEventListener('click', ()=>{ renderReportForm(); });
+
+document.getElementById('exportCSV').addEventListener('click', exportCSV);
+document.getElementById('clearReports').addEventListener('click', ()=>{ if(confirm('Eliminare tutti i report?')){ reports=[]; saveReports(); renderReportsTable(); renderPareto(); renderRiskMatrix(); } });
+
+// init
+renderBuilder(); renderReportsTable(); renderPareto(); renderRiskMatrix();
+
+</script>
+</body>
+</html>
