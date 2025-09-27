@@ -1,0 +1,774 @@
+﻿<!doctype html>
+<html lang="it">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Risk Management - FMEA & Incident Reporting</title>
+
+    <!-- Bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+    <!-- PptxGenJS for PPTX export -->
+    <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@4.3.0/dist/pptxgen.bundle.js"></script>
+
+    <!-- jsPDF for PDF export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+    <style>
+        body {
+            background: #f6f7fb;
+            padding: 18px;
+            font-family: system-ui,Segoe UI,Roboto,'Helvetica Neue',Arial
+        }
+
+        .card-wizard {
+            max-width: 980px;
+            margin: 0 auto
+        }
+
+        .wizard-step {
+            display: none
+        }
+
+            .wizard-step.active {
+                display: block
+            }
+
+        .matrix {
+            display: grid;
+            grid-template-columns: repeat(10,1fr);
+            gap: 4px
+        }
+
+            .matrix .cell {
+                height: 48px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 12px;
+                border-radius: 4px;
+                color: #111
+            }
+
+        .small-muted {
+            font-size: 0.85rem;
+            color: #666
+        }
+
+        .file-list {
+            max-height: 140px;
+            overflow: auto
+        }
+
+        .top-badge {
+            font-size: 0.75rem;
+            padding: .25rem .5rem
+        }
+    </style>
+    
+<body>
+
+    <div class="container card-wizard">
+
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h1 class="h4 m-0">Sistema di Risk Management - FMEA & Incident Reporting</h1>
+            <div>
+                <button class="btn btn-outline-secondary btn-sm" onclick="downloadJSON()">Salva / Backup (JSON)</button>
+                <button class="btn btn-outline-primary btn-sm" onclick="importJSON()">Importa JSON</button>
+            </div>
+        </div>
+
+        <!-- Progress -->
+        <div class="progress mb-3"><div id="progressBar" class="progress-bar" style="width:0%">0%</div></div>
+
+        <!-- WIZARD CARD -->
+        <div class="card mb-4 p-3">
+            <!-- Steps -->
+            <div id="step1" class="wizard-step active">
+                <h5>Step 1 — Descrizione incidente</h5>
+                <textarea id="descrizione" class="form-control" rows="3" placeholder="Descrivi l'evento, cosa è successo..."></textarea>
+            </div>
+            <div class="mt-3">
+                <label class="form-label">Classificazione evento</label>
+                <select id="categoriaEvento" class="form-select">
+                    <option value="">-- seleziona categoria --</option>
+                    <option value="Near Miss">Near Miss</option>
+                    <option value="Evento senza danno">Evento senza danno</option>
+                    <option value="Evento avverso">Evento avverso</option>
+                    <option value="Evento sentinella">Evento sentinella</option>
+                </select>
+            </div>
+
+            <div id="step2" class="wizard-step">
+                <h5>Step 2 — Seleziona la causa (o aggiungi nuova)</h5>
+                <div class="row g-2">
+                    <div class="col-md-8">
+                        <select id="causa" class="form-select">
+                            <option value="">-- scegli una causa predefinita --</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <input id="newCausa" class="form-control" placeholder="Aggiungi nuova causa e premi Aggiungi">
+                    </div>
+                </div>
+                <div class="mt-2">
+                    <button class="btn btn-sm btn-outline-success" onclick="addCausa()">Aggiungi causa</button>
+                </div>
+                <div class="mt-3 small-muted">Selezionando una causa vengono proposti automaticamente effetti e soluzioni tipiche.</div>
+            </div>
+
+            <div id="step3" class="wizard-step">
+                <h5>Step 3 — Effetti rilevanti / Procedure impattate</h5>
+                <div id="effettiBox" class="mb-2"></div>
+                <div class="small-muted">Seleziona quali effetti/punti di processo sono rilevanti per questo incidente.</div>
+
+                <hr />
+
+                <h6 class="mt-2">Allega documentazione (procedure, foto, log)</h6>
+                <input type="file" id="fileAttach" class="form-control form-control-sm mb-2" />
+                <div class="file-list" id="attachedList"></div>
+            </div>
+
+            <div id="step4" class="wizard-step">
+                <h5>Step 4 — Valutazione FMEA (S × O × D)</h5>
+                <div class="row g-2">
+                    <div class="col"><label>Severity (1–10)</label><input id="severity" type="number" min="1" max="10" class="form-control"></div>
+                    <div class="col"><label>Occurrence (1–10)</label><input id="occurrence" type="number" min="1" max="10" class="form-control"></div>
+                    <div class="col"><label>Detection (1–10)</label><input id="detection" type="number" min="1" max="10" class="form-control"></div>
+                </div>
+                <p class="mt-2">RPN: <strong id="rpnDisplay">-</strong></p>
+            </div>
+
+            <div id="step5" class="wizard-step">
+                <h5>Step 5 — Soluzioni / Azioni di mitigazione</h5>
+                <div id="soluzioniBox"></div>
+
+                <div class="mt-3">
+                    <label>Assegna azioni personalizzate (opzionale)</label>
+                    <div class="row g-2 align-items-end">
+                        <div class="col-md-6"><input id="actionDescr" placeholder="Descrizione azione" class="form-control" /></div>
+                        <div class="col-md-2"><input id="actionOwner" placeholder="Responsabile" class="form-control" /></div>
+                        <div class="col-md-2"><input id="actionDue" type="date" class="form-control" /></div>
+                        <div class="col-md-2"><button class="btn btn-sm btn-primary" onclick="addAction()">Aggiungi azione</button></div>
+                    </div>
+                    <div class="mt-2 small-muted">Le azioni diventano parte del registro e possono essere monitorate (aperte/mitigate/chiuse).</div>
+                    <ul id="actionList" class="mt-2"></ul>
+                </div>
+            </div>
+
+            <!-- Navigation -->
+            <div class="d-flex justify-content-between mt-3">
+                <div>
+                    <button class="btn btn-outline-secondary" onclick="prevStep()">Indietro</button>
+                </div>
+                <div>
+                    <button class="btn btn-primary" onclick="nextStep()">Avanti</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Dashboard + Controls -->
+        <div class="row gy-3">
+            <div class="col-lg-8">
+                <div class="card p-3 mb-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="m-0">Risk Register</h5>
+                        <div>
+                            <button class="btn btn-sm btn-outline-dark" onclick="exportCSV()">Esporta CSV</button>
+                            <button class="btn btn-sm btn-outline-primary" onclick="exportPPT()">Esporta PPTX</button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="exportPDF()">Esporta PDF</button>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive mt-3" style="max-height:340px;overflow:auto">
+                        <table class="table table-sm table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>#</th>
+                                    <th>Descrizione</th>
+                                    <th>Causa</th>
+                                    <th>Categoria</th> <!-- nuova colonna -->
+                                    <th>RPN</th>
+                                    <th>Stato</th>
+                                    <th>Azioni</th>
+                                    <th>Docs</th>
+                                </tr>
+                            </thead>
+
+                            <tbody id="registerBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="card p-3">
+                    <h5 class="m-0">Pareto Cause & Soluzioni associate</h5>
+                    <canvas id="paretoChart" height="120" class="mt-3"></canvas>
+                    <div class="small-muted mt-2">Tooltip mostra soluzioni più proposte per ogni causa.</div>
+                </div>
+            </div>
+
+            <div class="col-lg-4">
+                <div class="card p-3 mb-3">
+                    <h6 class="mb-2">Dashboard rapido</h6>
+                    <div id="top5List"></div>
+                    <hr />
+                    <h6 class="mb-2">Metriche</h6>
+                    <div class="small-muted">Tot report: <strong id="totalReports">0</strong></div>
+                    <div class="small-muted">Media RPN: <strong id="avgRPN">-</strong></div>
+                </div>
+
+                <div class="card p-3">
+                    <h6 class="mb-2">Risk Matrix (Severity × Occurrence)</h6>
+                    <div class="matrix" id="riskMatrix"></div>
+                    <div class="small-muted mt-2">Celle colorate in base al prodotto S×O. Clicca per vedere soluzioni.</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal per visualizzare dettagli report -->
+        <div class="modal" tabindex="-1" id="detailModal">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header"><h5 class="modal-title">Dettagli Report</h5><button class="btn-close" onclick="closeModal()"></button></div>
+                    <div class="modal-body" id="modalBody"></div>
+                    <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal()">Chiudi</button></div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>/* -------------------------
+           DATA & MAP (causa -> effetti/soluzioni)
+           ------------------------- */
+        const causeMap = {
+            "Errore umano": {
+                effetti: ["Errore prescrizione", "Mancata consegna materiali", "Esecuzione procedure fuori protocollo"],
+                soluzioni: ["Formazione periodica", "Checklist pre-procedura", "Doppia verifica"]
+            },
+             "Caduta accidentale": {
+        effetti: [
+            "Infortunio paziente",
+            "Ritardo trattamento",
+            "Incremento costi assistenziali"
+        ],
+        soluzioni: [
+            "Formazione periodica",
+            "Valutazione rischio cadute (Morse, Conley)",
+            "Uso ausili antiscivolo e sponde letto",
+            "Controlli ambientali regolari",
+            "Checklist pre-mobilizzazione"
+        ]
+            },
+            "Strumento difettoso": {
+                effetti: ["Ritardo procedura", "Intervento aggiuntivo", "Complicanze operative"],
+                soluzioni: ["Manutenzione preventiva", "Controllo qualità incoming", "Sostituzione dispositivi"]
+            },
+            "Errore comunicazione": {
+                effetti: ["Perdita informazione critica", "Confusione responsabilità", "Ritardo decisione"],
+                soluzioni: ["Protocollo SBAR", "Briefing/debriefing", "Registro comunicazioni"]
+            }
+        };
+
+        // Storage keys
+        const STORAGE_KEY = "rms_fmea_v1";
+        let store = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+
+        // normalize store structure
+        if (!store.causes) store.causes = { ...causeMap };
+        if (!store.reports) store.reports = [];
+        if (!store.actions) store.actions = []; // global actions if needed
+
+        // UI state
+        let currentStep = 1;
+        let tempActions = []; // actions for current report
+        let tempAttached = []; // attachments for current report
+
+        /* -------------------------
+           WIZARD NAV
+           ------------------------- */
+        function showStep(n) {
+            currentStep = n;
+            document.querySelectorAll('.wizard-step').forEach(el => el.classList.remove('active'));
+            document.getElementById('step' + n).classList.add('active');
+            let pct = Math.round((n - 1) / 4 * 100);
+            document.getElementById('progressBar').style.width = pct + '%';
+            document.getElementById('progressBar').innerText = pct + '%';
+        }
+        function nextStep() {
+            if (currentStep === 2 && !getSelectedCausa()) {
+                alert('Seleziona o inserisci una causa prima di proseguire.');
+                return;
+            }
+            if (currentStep === 4) {
+                const rpn = calcRPN();
+                if (!rpn) { if (!confirm('RPN è 0. Prosegui?')) return; }
+            }
+            if (currentStep < 5) showStep(currentStep + 1);
+            else { saveReport(); showStep(1); resetWizard(); }
+        }
+        function prevStep() { if (currentStep > 1) showStep(currentStep - 1); }
+
+        /* -------------------------
+           CAUSE / EFFETTI / SOLUZIONI
+           ------------------------- */
+        function populateCauseSelect() {
+            const sel = document.getElementById('causa');
+            sel.innerHTML = '<option value="">-- scegli una causa predefinita --</option>';
+            Object.keys(store.causes).forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c; opt.innerText = c; sel.appendChild(opt);
+            });
+        }
+        populateCauseSelect();
+
+        document.getElementById('causa').addEventListener('change', e => {
+            const c = e.target.value;
+            renderEffectsAndSolutions(c);
+        });
+
+        function addCausa() {
+            const v = document.getElementById('newCausa').value.trim();
+            if (!v) return alert('Inserisci il nome della causa');
+            if (!store.causes[v]) store.causes[v] = { effetti: [], soluzioni: [] };
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+            populateCauseSelect();
+            document.getElementById('causa').value = v;
+            renderEffectsAndSolutions(v);
+            document.getElementById('newCausa').value = '';
+            alert('Causa aggiunta al dizionario. Ricorda di popolare effetti/soluzioni se necessario.');
+        }
+
+        function renderEffectsAndSolutions(causa) {
+            const effBox = document.getElementById('effettiBox');
+            const solBox = document.getElementById('soluzioniBox');
+            effBox.innerHTML = ''; solBox.innerHTML = '';
+            if (!causa || !store.causes[causa]) return;
+            const { effetti, soluzioni } = store.causes[causa];
+            // effetti
+            effetti.forEach(eff => {
+                const id = 'eff_' + btoa(eff).slice(0, 8);
+                effBox.insertAdjacentHTML('beforeend',
+                    `<div class="form-check"><input class="form-check-input effetto" type="checkbox" id="${id}" value="${eff}"><label class="form-check-label" for="${id}">${eff}</label></div>`);
+            });
+            // soluzioni
+            soluzioni.forEach(sol => {
+                const id = 'sol_' + btoa(sol).slice(0, 8);
+                solBox.insertAdjacentHTML('beforeend',
+                    `<div class="form-check"><input class="form-check-input soluzione" type="checkbox" id="${id}" value="${sol}"><label class="form-check-label" for="${id}">${sol}</label></div>`);
+            });
+        }
+
+        /* -------------------------
+           Allegati (file reader -> dataURL)
+           ------------------------- */
+        document.getElementById('fileAttach').addEventListener('change', async (ev) => {
+            const file = ev.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                tempAttached.push({ name: file.name, type: file.type, data: e.target.result });
+                renderAttached();
+            };
+            reader.readAsDataURL(file);
+            ev.target.value = '';
+        });
+        function renderAttached() {
+            const div = document.getElementById('attachedList');
+            div.innerHTML = '';
+            tempAttached.forEach((f, idx) => {
+                const li = document.createElement('div');
+                li.className = 'd-flex justify-content-between align-items-center border rounded p-1 mb-1';
+                li.innerHTML = `<div><strong>${f.name}</strong> <span class="small-muted">(${f.type})</span></div>
+          <div><button class="btn btn-sm btn-outline-secondary" onclick="downloadAttachment(${idx})">Scarica</button>
+          <button class="btn btn-sm btn-outline-danger ms-1" onclick="removeAttachment(${idx})">Rimuovi</button></div>`;
+                div.appendChild(li);
+            });
+        }
+        function downloadAttachment(idx) {
+            const f = tempAttached[idx];
+            const a = document.createElement('a');
+            a.href = f.data; a.download = f.name; a.click();
+        }
+        function removeAttachment(idx) { tempAttached.splice(idx, 1); renderAttached(); }
+
+        /* -------------------------
+           Azioni di mitigazione (temporanee, poi salvate con report)
+           ------------------------- */
+        function addAction() {
+            const desc = document.getElementById('actionDescr').value.trim();
+            const owner = document.getElementById('actionOwner').value.trim();
+            const due = document.getElementById('actionDue').value;
+            if (!desc) return alert('Descrizione azione richiesta');
+            tempActions.push({ descr: desc, owner, due, status: 'Aperta', created: new Date().toISOString() });
+            document.getElementById('actionDescr').value = '';
+            document.getElementById('actionOwner').value = '';
+            document.getElementById('actionDue').value = '';
+            renderActions();
+        }
+        function renderActions() {
+            const ul = document.getElementById('actionList'); ul.innerHTML = '';
+            tempActions.forEach((a, i) => {
+                const li = document.createElement('li');
+                li.className = 'd-flex justify-content-between align-items-center mb-1';
+                li.innerHTML = `<div><strong>${a.descr}</strong><div class="small-muted">Owner: ${a.owner || '-'} • Due: ${a.due || '-'} • Status: ${a.status}</div></div>
+          <div>
+            <button class="btn btn-sm btn-outline-success" onclick="markActionDone(${i})">Mitiga</button>
+            <button class="btn btn-sm btn-outline-danger ms-1" onclick="removeAction(${i})">Rimuovi</button>
+          </div>`;
+                ul.appendChild(li);
+            });
+        }
+        function markActionDone(i) { tempActions[i].status = 'Mitigata'; renderActions(); }
+        function removeAction(i) { tempActions.splice(i, 1); renderActions(); }
+
+        /* -------------------------
+           FMEA calc
+           ------------------------- */
+        function calcRPN() {
+            const s = +document.getElementById('severity').value || 0;
+            const o = +document.getElementById('occurrence').value || 0;
+            const d = +document.getElementById('detection').value || 0;
+            const rpn = s * o * d;
+            document.getElementById('rpnDisplay').innerText = rpn;
+            return rpn;
+        }
+        document.getElementById('severity').addEventListener('input', calcRPN);
+        document.getElementById('occurrence').addEventListener('input', calcRPN);
+        document.getElementById('detection').addEventListener('input', calcRPN);
+
+        /* -------------------------
+           SAVE / REGISTER
+           ------------------------- */
+        function getSelectedCausa() { return document.getElementById('causa').value || null; }
+
+        function saveReport() {
+    const descr = document.getElementById('descrizione').value.trim();
+    const causa = getSelectedCausa();
+    const categoria = document.getElementById('categoriaEvento').value;
+    if (!descr || !causa) { alert('Descrizione e causa obbligatorie'); return; }
+
+    const effetti = [...document.querySelectorAll('.effetto:checked')].map(i => i.value);
+    const soluzioni = [...document.querySelectorAll('.soluzione:checked')].map(i => i.value);
+    const s = +document.getElementById('severity').value || 0;
+    const o = +document.getElementById('occurrence').value || 0;
+    const d = +document.getElementById('detection').value || 0;
+    const rpn = calcRPN();
+    const id = Date.now();
+
+    const report = {
+        id, created: new Date().toISOString(),
+        descr, causa, categoria, effetti, soluzioni,
+        severity: s, occurrence: o, detection: d, rpn,
+        actions: tempActions.slice(),
+        attachments: tempAttached.slice(),
+        status: 'Aperto'
+    };
+
+    store.reports.push(report);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    renderRegister();
+    alert('Report salvato nel Risk Register.');
+}
+
+
+        /* -------------------------
+           Reset wizard temps
+           ------------------------- */
+        function resetWizard() {
+            document.getElementById('descrizione').value = '';
+            document.getElementById('causa').value = '';
+            document.getElementById('effettiBox').innerHTML = '';
+            document.getElementById('soluzioniBox').innerHTML = '';
+            document.getElementById('severity').value = '';
+            document.getElementById('occurrence').value = '';
+            document.getElementById('detection').value = '';
+            document.getElementById('rpnDisplay').innerText = '-';
+            tempActions = []; tempAttached = []; renderActions(); renderAttached();
+        }
+
+        /* -------------------------
+           Render Register / Dashboard / Pareto / Matrix
+           ------------------------- */
+        let paretoChart = null;
+
+        function renderRegister() {
+    const tbody = document.getElementById('registerBody');
+    tbody.innerHTML = '';
+    store.reports = store.reports.sort((a, b) => b.rpn - a.rpn);
+
+    store.reports.forEach((r, idx) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${idx + 1}</td>
+          <td style="max-width:260px">
+            <strong>${r.descr}</strong>
+            <div class="small-muted">${new Date(r.created).toLocaleString()}</div>
+          </td>
+          <td>${r.causa}</td>
+          <td>${r.categoria || '-'}</td>   <!-- qui mostra la categoria -->
+          <td>${r.rpn}</td>
+          <td>
+            <span class="badge ${r.status === 'Aperto' ? 'bg-warning text-dark' : r.status === 'Mitigato' ? 'bg-info' : 'bg-success'}">
+              ${r.status}
+            </span>
+          </td>
+          <td>
+            <button class="btn btn-sm btn-outline-primary" onclick="openDetail(${r.id})">Dettagli</button>
+            <button class="btn btn-sm btn-outline-success ms-1" onclick="changeStatus(${r.id},'Mitigato')">Segna Mitigato</button>
+            <button class="btn btn-sm btn-outline-danger ms-1" onclick="changeStatus(${r.id},'Chiuso')">Chiudi</button>
+          </td>
+          <td>${r.attachments.length ? '<span class="badge bg-secondary top-badge">' + r.attachments.length + ' docs</span>' : ''}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+
+    // metrics
+    document.getElementById('totalReports').innerText = store.reports.length;
+    const avg = store.reports.length ? Math.round(store.reports.reduce((s, r) => s + r.rpn, 0) / store.reports.length) : '-';
+    document.getElementById('avgRPN').innerText = avg;
+
+    renderTop5();
+    renderPareto();
+    renderMatrix();
+}
+
+
+        function renderTop5() {
+            const div = document.getElementById('top5List'); div.innerHTML = '';
+            const top = store.reports.slice(0, 5);
+            if (top.length === 0) { div.innerHTML = '<div class="small-muted">Nessun report</div>'; return; }
+            top.forEach((r, i) => {
+                const el = document.createElement('div');
+                el.className = 'mb-2';
+                el.innerHTML = `<div><strong>${i + 1}. ${r.descr.slice(0, 80)}</strong></div>
+          <div class="small-muted">Causa: ${r.causa} • RPN: ${r.rpn}</div>`;
+                div.appendChild(el);
+            });
+        }
+
+        function renderPareto() {
+            // count by cause
+            const counts = {};
+            store.reports.forEach(r => {
+                counts[r.causa] = counts[r.causa] || { count: 0, sol: [] };
+                counts[r.causa].count++;
+                counts[r.causa].sol.push(...r.soluzioni);
+                // also include actions assigned as suggestions
+                counts[r.causa].sol.push(...r.actions.map(a => a.descr));
+            });
+            const labels = Object.keys(counts);
+            const data = labels.map(l => counts[l].count);
+            const ctx = document.getElementById('paretoChart').getContext('2d');
+            if (paretoChart) paretoChart.destroy();
+            paretoChart = new Chart(ctx, {
+                type: 'bar',
+                data: { labels, datasets: [{ label: 'Occorrenze', data }] },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                afterBody: (items) => {
+                                    const cause = items[0].label;
+                                    const sols = [...new Set(counts[cause].sol)].filter(Boolean);
+                                    return sols.length ? ['Soluzioni suggerite:', '- ' + sols.join('\n- ')] : [];
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderMatrix() {
+            const container = document.getElementById('riskMatrix'); container.innerHTML = '';
+            for (let s = 10; s >= 1; s--) {
+                for (let o = 1; o <= 10; o++) {
+                    const cell = document.createElement('div'); cell.className = 'cell';
+                    const matches = store.reports.filter(r => r.severity === s && r.occurrence === o);
+                    const riskScore = s * o;
+                    // color scale
+                    let bg = '#b6fcb6';
+                    if (riskScore >= 70) bg = '#f55';
+                    else if (riskScore >= 40) bg = '#ffb347';
+                    cell.style.background = bg;
+                    cell.innerHTML = `<div style="text-align:center;font-size:11px">S${s}-O${o}<br/><small>${matches.length} evt</small></div>`;
+                    if (matches.length) {
+                        cell.style.cursor = 'pointer';
+                        cell.title = 'Clicca per vedere i report e soluzioni';
+                        cell.addEventListener('click', () => openMatrixDetail(s, o));
+                    }
+                    container.appendChild(cell);
+                }
+            }
+        }
+
+        /* -------------------------
+           Interazione report details & status
+           ------------------------- */
+        function openDetail(id) {
+            const r = store.reports.find(x => x.id === id);
+            if (!r) return;
+            const modal = document.getElementById('detailModal');
+            const body = document.getElementById('modalBody');
+            body.innerHTML = `
+        <h5>${r.descr}</h5>
+        <div class="small-muted mb-2">Creato: ${new Date(r.created).toLocaleString()} • Causa: ${r.causa} • RPN: ${r.rpn}</div>
+        <p><strong>Effetti:</strong> ${r.effetti.join(', ')}</p>
+        <p><strong>Soluzioni selezionate:</strong> ${r.soluzioni.join(', ')}</p>
+        <p><strong>Azioni:</strong></p>
+        <ul>${r.actions.map(a => `<li>${a.descr} • Owner: ${a.owner || '-'} • Due: ${a.due || '-'} • Status: ${a.status}</li>`).join('')}</ul>
+        <p><strong>Allegati:</strong></p>
+        <div>${r.attachments.map((f, idx) => `<div class="mb-1"><a href="${f.data}" download="${f.name}">${f.name}</a></div>`).join('')}</div>
+        <div class="mt-2"><button class="btn btn-sm btn-outline-success" onclick="markReportMitigated(${id})">Segna Mitigato</button>
+        <button class="btn btn-sm btn-outline-danger ms-1" onclick="markReportClosed(${id})">Chiudi</button></div>`;
+            modal.style.display = 'block';
+            modal.classList.add('show');
+        }
+
+        function closeModal() { const modal = document.getElementById('detailModal'); modal.style.display = 'none'; modal.classList.remove('show'); }
+
+        function changeStatus(id, newStatus) {
+            const r = store.reports.find(x => x.id === id);
+            if (!r) return;
+            r.status = newStatus;
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+            renderRegister();
+        }
+        function markReportMitigated(id) { changeStatus(id, 'Mitigato'); closeModal(); }
+        function markReportClosed(id) { changeStatus(id, 'Chiuso'); closeModal(); }
+
+        function openMatrixDetail(s, o) {
+            const matches = store.reports.filter(r => r.severity === s && r.occurrence === o);
+            const html = matches.length ? matches.map(r => `<div class="mb-2"><strong>${r.descr}</strong><div class="small-muted">Causa: ${r.causa} • RPN: ${r.rpn}</div></div>`).join('') : '<div class="small-muted">Nessun report</div>';
+            const body = document.getElementById('modalBody');
+            body.innerHTML = `<h5>Report S${s} x O${o}</h5>${html}`;
+            const modal = document.getElementById('detailModal'); modal.style.display = 'block'; modal.classList.add('show');
+        }
+
+        /* -------------------------
+           EXPORT (CSV / PPTX / PDF / JSON)
+           ------------------------- */
+        function exportCSV() {
+            if (!store.reports.length) { alert('Nessun report'); return; }
+            const cols = ['id', 'created', 'descr', 'causa', 'effetti', 'soluzioni', 'severity', 'occurrence', 'detection', 'rpn', 'status', 'actions', 'attachments'];
+            const rows = store.reports.map(r => {
+                const actions = r.actions.map(a => `${a.descr} (owner:${a.owner} due:${a.due} status:${a.status})`).join(' | ');
+                const attach = r.attachments.map(a => a.name).join('|');
+                return cols.map(c => {
+                    if (c === 'effetti') return `"${r.effetti.join(';')}"`;
+                    if (c === 'soluzioni') return `"${r.soluzioni.join(';')}"`;
+                    if (c === 'actions') return `"${actions}"`;
+                    if (c === 'attachments') return `"${attach}"`;
+                    return `"${r[c] || ''}"`;
+                }).join(',');
+            });
+            const csv = cols.join(',') + '\n' + rows.join('\n');
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a'); a.href = url; a.download = 'risk_register.csv'; a.click(); URL.revokeObjectURL(url);
+        }
+
+        async function exportPPT() {
+            if (!store.reports.length) { alert('Nessun report'); return; }
+            const pptx = new PptxGenJS();
+            pptx.defineLayout({ name: 'A4', width: 11.69, height: 8.27 });
+            pptx.layout = 'A4';
+            // Title slide
+            let slide = pptx.addSlide();
+            slide.addText('Risk Register - Summary', { x: 0.5, y: 0.5, fontSize: 24, fontFace: 'Arial', bold: true });
+            slide.addText(`Tot reports: ${store.reports.length}`, { x: 0.5, y: 1.2, fontSize: 14 });
+            // Top 5 slides
+            const top = store.reports.slice(0, 6);
+            top.forEach((r, i) => {
+                let s = pptx.addSlide();
+                s.addText(`${i + 1}. ${r.descr}`, { x: .5, y: .4, fontSize: 16, bold: true });
+                s.addText(`Causa: ${r.causa} • RPN: ${r.rpn} • Stato: ${r.status}`, { x: .5, y: 1, fontSize: 12 });
+                s.addText(`Effetti: ${r.effetti.join(', ')}`, { x: .5, y: 1.6, fontSize: 12 });
+                s.addText(`Soluzioni: ${r.soluzioni.join(', ')}`, { x: .5, y: 2.2, fontSize: 12 });
+                if (r.actions && r.actions.length) {
+                    s.addText('Azioni:', { x: .5, y: 2.8, fontSize: 12, bold: true });
+                    s.addText(r.actions.map(a => `- ${a.descr} (Owner: ${a.owner || '-'} Due: ${a.due || '-'})`).join('\n'), { x: .6, y: 3.2, fontSize: 10 });
+                }
+            });
+            // download
+            await pptx.writeFile({ fileName: 'risk_register_summary.pptx' });
+        }
+
+        async function exportPDF() {
+            if (!store.reports.length) { alert('Nessun report'); return; }
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('landscape');
+            doc.setFontSize(14); doc.text('Risk Register Summary', 10, 10);
+            let y = 20;
+            store.reports.slice(0, 10).forEach((r, i) => {
+                doc.setFontSize(10);
+                doc.text(`${i + 1}. ${r.descr}`, 10, y);
+                doc.text(`Causa: ${r.causa} • RPN: ${r.rpn} • Stato: ${r.status}`, 10, y + 6);
+                y += 16;
+                if (y > 180) { doc.addPage(); y = 10; }
+            });
+            doc.save('risk_register_summary.pdf');
+        }
+
+        /* -------------------------
+           JSON Backup / Import
+           ------------------------- */
+        function downloadJSON() {
+            const dataStr = JSON.stringify(store, null, 2);
+            const blob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a'); a.href = url; a.download = 'rms_backup.json'; a.click(); URL.revokeObjectURL(url);
+        }
+
+        function importJSON() {
+            const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'application/json';
+            inp.onchange = (e) => {
+                const f = e.target.files[0];
+                const r = new FileReader();
+                r.onload = () => {
+                    try {
+                        const data = JSON.parse(r.result);
+                        store = data;
+                        localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+                        populateCauseSelect(); renderRegister(); alert('Import completato.');
+                    } catch (err) { alert('Errore import JSON'); }
+                };
+                r.readAsText(f);
+            };
+            inp.click();
+        }
+
+        /* -------------------------
+           Init & helpers
+           ------------------------- */
+        function openDetailByIdx(i) { openDetail(store.reports[i].id); }
+
+        function downloadAllAttachments() { /* optional */ }
+
+        function init() {
+            // ensure keys
+            if (!store.reports) store.reports = [];
+            if (!store.causes) {
+    store.causes = { ...causeMap };
+} else {
+    // aggiunge eventuali nuove cause di causeMap a store.causes
+    Object.keys(causeMap).forEach(c => {
+        if (!store.causes[c]) store.causes[c] = causeMap[c];
+    });
+}
+
+            populateCauseSelect();
+            renderRegister();
+            showStep(1);
+        }
+        init();</script>
+
+</body>
+</html>
+
+
