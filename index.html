@@ -95,6 +95,7 @@ function renderSegnalazioni(){
   <div class="sidebar">
     <h3>Risk Manager</h3>
     <div class="small-muted mb-2">Tool: Audit → FMEA → Matrice</div>
+    <a href="#" id="link-segnalazioni" onclick="showSection('segnalazioni')">Segnalazioni</a>
     <a href="#" class="active" id="link-audit" onclick="showSection('audit')">Audit</a>
     <a href="#" id="link-fmea" onclick="showSection('fmea')">FMEA & Risk Register</a>
     <a href="#" id="link-matrix" onclick="showSection('matrix')">Matrice di Rischio (10×10)</a>
@@ -102,8 +103,6 @@ function renderSegnalazioni(){
     <div class="small-muted">Quick actions</div>
     <button class="btn btn-sm btn-light mt-2" onclick="exportJSON()">Backup JSON</button>
     <button class="btn btn-sm btn-outline-light mt-2" onclick="clearAll()">Reset locale</button>
-  
-<a href="#" id="link-segnalazioni" onclick="showSection('segnalazioni')">Segnalazioni</a>
 
 </div>
 
