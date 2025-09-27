@@ -258,43 +258,65 @@ function renderSegnalazioni(){
   </div>
 
   <div class="card-elegant mb-4 p-3">
-    <form id="formSegnalazione">
-      <h5>Dove</h5>
-      <select class="form-select mb-3" id="luogo">
-        <option value="">Seleziona luogo</option>
-        <option>Reparto</option>
-        <option>Sala operatoria</option>
-        <option>Pronto soccorso</option>
-        <option>Ambulatorio</option>
-        <option>Altro</option>
-      </select>
+      <form id="formSegnalazione">
+          <h5>Dove</h5>
+          <select class="form-select mb-3" id="luogo">
+              <option value="">Seleziona luogo</option>
+              <option>Reparto</option>
+              <option>Sala operatoria</option>
+              <option>Pronto soccorso</option>
+              <option>Ambulatorio</option>
+              <option>Altro</option>
+          </select>
 
-      <h5>Quando</h5>
-      <input type="date" class="form-control mb-2" id="data">
-      <input type="time" class="form-control mb-2" id="ora">
-      <textarea class="form-control mb-3" id="note" placeholder="Note aggiuntive"></textarea>
+          <h5>Quando</h5>
+          <input type="date" class="form-control mb-2" id="data">
+          <input type="time" class="form-control mb-2" id="ora">
+          <textarea class="form-control mb-3" id="note" placeholder="Note aggiuntive"></textarea>
 
-      <h5>Chi</h5>
-      <input type="text" class="form-control mb-2" id="segnalatore" placeholder="Nome di chi segnala">
-      <div class="form-check"><input type="checkbox" class="form-check-input" id="paziente"><label class="form-check-label">Paziente</label></div>
-      <div class="form-check"><input type="checkbox" class="form-check-input" id="familiari"><label class="form-check-label">Familiari</label></div>
-      <div class="form-check"><input type="checkbox" class="form-check-input" id="personale"><label class="form-check-label">Personale</label></div>
-      <div class="form-check mb-3"><input type="checkbox" class="form-check-input" id="altro"><label class="form-check-label">Altro</label></div>
+          <h5>Chi</h5>
+          <input type="text" class="form-control mb-2" id="segnalatore" placeholder="Nome di chi segnala">
+          <div class="form-check"><input type="checkbox" class="form-check-input" id="paziente"><label class="form-check-label">Paziente</label></div>
+          <div class="form-check"><input type="checkbox" class="form-check-input" id="familiari"><label class="form-check-label">Familiari</label></div>
+          <div class="form-check"><input type="checkbox" class="form-check-input" id="personale"><label class="form-check-label">Personale</label></div>
+          <div class="form-check mb-3"><input type="checkbox" class="form-check-input" id="altro"><label class="form-check-label">Altro</label></div>
 
-      <h5>Che cosa</h5>
-      <textarea class="form-control mb-2" id="descrizione" placeholder="Descrizione dettagliata"></textarea>
-      <input type="text" class="form-control mb-2" id="tipologia_evento" placeholder="Tipologia di evento">
-      <input type="text" class="form-control mb-2" id="tipologia_prestazione" placeholder="Tipologia di prestazione">
-      <input type="text" class="form-control mb-3" id="oggetto" placeholder="Oggetto dell'evento">
+          <h5>Che cosa</h5>
+          <textarea class="form-control mb-2" id="descrizione" placeholder="Descrizione dettagliata"></textarea>
+          <input type="text" class="form-control mb-2" id="tipologia_evento" placeholder="Tipologia di evento">
+          <input type="text" class="form-control mb-2" id="tipologia_prestazione" placeholder="Tipologia di prestazione">
+          <input type="text" class="form-control mb-3" id="oggetto" placeholder="Oggetto dell'evento">
 
-      <h5>Come</h5>
-      <div class="form-check"><input type="checkbox" class="form-check-input" id="fatt_paz"><label class="form-check-label">Fattori legati al paziente</label></div>
-      <div class="form-check"><input type="checkbox" class="form-check-input" id="fatt_pers"><label class="form-check-label">Fattori legati al personale</label></div>
-      <div class="form-check"><input type="checkbox" class="form-check-input" id="fatt_amb"><label class="form-check-label">Fattori legati all'ambiente</label></div>
-      <div class="form-check mb-3"><input type="checkbox" class="form-check-input" id="fatt_rid"><label class="form-check-label">Fattori che possono aver ridotto l'esito</label></div>
+          <h5>Come</h5>
+          <h6>Fattori legati al paziente</h6>
+          <div class="form-check"><input type="checkbox" class="form-check-input" id="fatt_paz"><label class="form-check-label">Grossa fragilità o infermità</label></div>
+          <div class="form-check"><input type="checkbox" class="form-check-input" id="fatt_paz"><label class="form-check-label">Poca/mancata autonomia</label></div>
+          <div class="form-check"><input type="checkbox" class="form-check-input" id="fatt_paz"><label class="form-check-label">barriere lingustiche/culturali</label></div>
+          <div class="form-check"><input type="checkbox" class="form-check-input" id="fatt_paz"><label class="form-check-label">altro(specificare)</label></div>
+          <textarea class="form-control mb-2" id="descrizione" placeholder="Descrizione dettagliata"></textarea>
 
-      <button type="button" class="btn btn-success" onclick="salvaSegnalazione()">Salva segnalazione</button>
-    </form>
+          <h6>Fattori legati al personale</h6>
+          <div class="form-check"><input type="checkbox" class="form-check-input" id="fatt_paz"><label class="form-check-label">difficoltà nel seguire istruzioni/procedure</label></div>
+          <div class="form-check"><input type="checkbox" class="form-check-input" id="fatt_paz"><label class="form-check-label">Fatica/stress</label></div>
+          <div class="form-check"><input type="checkbox" class="form-check-input" id="fatt_paz"><label class="form-check-label">Scorciatoia/regola non seguita</label></div>
+          <div class="form-check"><input type="checkbox" class="form-check-input" id="fatt_paz"><label class="form-check-label">altro(specificare)</label></div>
+          <textarea class="form-control mb-2" id="descrizione" placeholder="Descrizione dettagliata"></textarea>
+
+          <h6>Fattori legati al sistema</h6>
+          <div class="form-check"><input type="checkbox" class="form-check-input" id="fatt_paz"><label class="form-check-label">Staff inagdeguato</label></div>
+          <div class="form-check"><input type="checkbox" class="form-check-input" id="fatt_paz"><label class="form-check-label">gruppo nuoco</label></div>
+          <div class="form-check"><input type="checkbox" class="form-check-input" id="fatt_paz"><label class="form-check-label">elevato turn over</label></div>
+          <div class="form-check"><input type="checkbox" class="form-check-input" id="fatt_paz"><label class="form-check-label">altro(specificare)</label></div>
+
+          <textarea class="form-control mb-2" id="descrizione" placeholder="Descrizione dettagliata"></textarea><h6>Fattori che possono aver ridotto l'esito</h6>
+          <div class="form-check"><input type="checkbox" class="form-check-input" id="fatt_paz"><label class="form-check-label">Individuazione precoce</label></div>
+          <div class="form-check"><input type="checkbox" class="form-check-input" id="fatt_paz"><label class="form-check-label">Fortuna</label></div>
+          <div class="form-check"><input type="checkbox" class="form-check-input" id="fatt_paz"><label class="form-check-label">Buona Assistenza</label></div>
+          <div class="form-check"><input type="checkbox" class="form-check-input" id="fatt_paz"><label class="form-check-label">altro(specificare)</label></div>
+          <textarea class="form-control mb-2" id="descrizione" placeholder="Descrizione dettagliata"></textarea>
+
+          <button type="button" class="btn btn-success" onclick="salvaSegnalazione()">Salva segnalazione</button>
+      </form>
   </div>
 
   <div class="card-elegant p-3">
