@@ -1,0 +1,650 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Audit & FMEA Risk Management — versione avanzata</title>
+
+  <!-- Bootstrap -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <!-- jsPDF -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <style>
+      body {
+          background-color: #f8f9fa;
+          font-family: "Segoe UI", Arial, sans-serif;
+      }
+
+      h2, h5, h6 {
+          color: #2c3e50;
+          font-weight: 600;
+      }
+
+      .card-elegant {
+          background: #ffffff;
+          border: 1px solid #dee2e6;
+          border-radius: 12px;
+          box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+          margin-bottom: 20px;
+      }
+
+          .card-elegant h5 {
+              border-bottom: 2px solid #eaeaea;
+              padding-bottom: 6px;
+              margin-bottom: 12px;
+          }
+
+      .form-check {
+          margin-bottom: 8px;
+      }
+
+      .form-check-label {
+          margin-left: 4px;
+          font-size: 15px;
+      }
+
+      .btn-success {
+          background-color: #27ae60;
+          border: none;
+          border-radius: 8px;
+          padding: 8px 16px;
+          font-weight: 500;
+          transition: 0.2s;
+      }
+
+          .btn-success:hover {
+              background-color: #219150;
+          }
+
+      table.table-hover th {
+          background-color: #f1f3f5;
+          color: #2c3e50;
+      }
+
+      table.table-hover td {
+          vertical-align: middle;
+      }
+    :root{--accent:#1abc9c;--bg:#f6f7fb;--card:#ffffff}
+    body{background:var(--bg);font-family:system-ui,Segoe UI,Roboto,'Helvetica Neue',Arial;margin:0}
+    .sidebar{height:100vh;position:fixed;left:0;top:0;width:240px;background:#16222A;background:linear-gradient(180deg,#16222A 0%,#2C5364 100%);color:#fff;padding:22px}
+    .sidebar h3{font-size:18px;margin-bottom:12px}
+    .sidebar a{display:block;color:#d6f1ef;padding:10px;border-radius:6px;text-decoration:none;margin-bottom:6px}
+    .sidebar a.active, .sidebar a:hover{background:var(--accent);color:#04251a}
+    .content{margin-left:260px;padding:26px}
+    .card-elegant{background:var(--card);border-radius:10px;box-shadow:0 6px 18px rgba(20,30,40,0.06);padding:18px}
+    .small-muted{font-size:0.85rem;color:#6b7280}
+    .matrix{display:grid;grid-template-columns:repeat(10,1fr);gap:4px}
+    .matrix .cell{height:54px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;color:#0b1220}
+    .badge-point{display:inline-block;padding:3px 6px;border-radius:999px;font-size:11px}
+    .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    @media(max-width:900px){.sidebar{position:relative;width:100%;height:auto}.content{margin-left:0;padding:16px}}
+  </style>
+</head>
+<body>
+    <div class="sidebar">
+        <h3>Risk Manager</h3>
+        <div class="small-muted mb-2">Tool: Audit → FMEA → Matrice</div>
+        <a href="#" id="link-segnalazioni" onclick="showSection('segnalazioni')">Segnalazioni</a>
+        <a href="#" class="active" id="link-audit" onclick="showSection('audit')">Audit rapido</a>
+        <a href="#" id="link-fmea" onclick="showSection('fmea')">FMEA & Risk Register</a>
+        <a href="#" id="link-matrix" onclick="showSection('matrix')">Matrice di Rischio (10×10)</a>
+        <hr style="border-color:rgba(255,255,255,0.06);margin-top:14px">
+        <div class="small-muted">Quick actions</div>
+        <button class="btn btn-sm btn-light mt-2" onclick="exportJSON()">Backup JSON</button>
+        <button class="btn btn-sm btn-outline-light mt-2" onclick="clearAll()">Reset locale</button>
+
+    </div>
+
+  <div class="content">
+    <!-- AUDIT RAPIDO -->
+    <div id="audit" class="section">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2>Audit rapido — Evento avverso</h2>
+        <div class="small-muted">Compila i 5 Perché per arrivare alla root cause</div>
+      </div>
+
+      
+<div class="card shadow-sm mb-3" id="segnalazioneSintesi" style="display:none;">
+  <div class="card-body">
+    <h5 class="card-title">Sintesi ultima segnalazione</h5>
+    <p><strong>Dove:</strong> <span id="s_dove"></span></p>
+    <p><strong>Quando:</strong> <span id="s_quando"></span> <span id="s_note"></span></p>
+    <p><strong>Chi:</strong> <span id="s_chi"></span></p>
+    <p><strong>Che cosa:</strong> <span id="s_descrizione"></span></p>
+    <p><strong>Tipologia:</strong> <span id="s_tipologia"></span> •
+       <strong>Prestazione:</strong> <span id="s_prestazione"></span></p>
+    <p><strong>Oggetto:</strong> <span id="s_oggetto"></span></p>
+    <p><strong>Come:</strong> <span id="s_fattori"></span></p>
+  </div>
+</div>
+
+      <div class="card-elegant mb-4">
+        <div class="form-grid">
+          <div>
+            <label class="form-label">Data</label>
+            <input id="auditDate" type="date" class="form-control mb-2">
+            <label class="form-label">Reparto / Unità</label>
+            <input id="auditWard" class="form-control mb-2" placeholder="Es. Chirurgia">
+            <label class="form-label">Tipologia</label>
+            <select id="auditType" class="form-select mb-2">
+              <option value="farmaco">Errore di farmaco</option>
+              <option value="caduta">Caduta</option>
+              <option value="infezione">Infezione</option>
+              <option value="procedura">Errore procedurale</option>
+              <option value="documentazione">Documentazione</option>
+              <option value="altro">Altro</option>
+            </select>
+
+            <div class="d-flex gap-2">
+              <div style="flex:1">
+                <label class="form-label">Severity (1-10)</label>
+                <input id="sev" type="number" min="1" max="10" value="5" class="form-control">
+              </div>
+              <div style="flex:1">
+                <label class="form-label">Occurrence (1-10)</label>
+                <input id="occ" type="number" min="1" max="10" value="5" class="form-control">
+              </div>
+            </div>
+            <div style="margin-top:8px;">
+              <label class="form-label">Detectability (1-10)</label>
+              <input id="det" type="number" min="1" max="10" value="5" class="form-control">
+            </div>
+
+            <div class="mt-3">
+              <label class="form-label">Descrizione sintetica</label>
+              <textarea id="auditDesc" rows="3" class="form-control"></textarea>
+            </div>
+
+            <div class="mt-3 d-flex gap-2">
+              <button class="btn btn-primary" onclick="generateAudit()">Genera Analisi</button>
+              <button class="btn btn-outline-secondary" onclick="resetAuditForm()">Pulisci</button>
+            </div>
+          </div>
+
+          <div>
+            <label class="form-label">Analisi 5 Perché (compila sequenzialmente)</label>
+            <input id="why1" class="form-control mb-2" placeholder="es. Qual è stato il primo evento che ha causato il problema?">
+            <input id="why2" class="form-control mb-2" placeholder="es. Perché si è verificato quel fatto?">
+            <input id="why3" class="form-control mb-2" placeholder="es. Quale causa ha portato a quel fatto?">
+            <input id="why4" class="form-control mb-2" placeholder="es. Perché quella causa si è manifestata?">
+            <input id="why5" class="form-control mb-2" placeholder="es. Qual è la causa profonda del problema?">
+
+            <div class="card mt-3 shadow-sm" style="border-left: 5px solid #0b6b4f;">
+                <div class="card-body">
+                    <h6 class="card-title">RPN calcolato</h6>
+                    <p id="rpnDisplay" class="display-6 text-success mb-2">0</p>
+                    <div class="small text-muted">
+                        <strong>Legenda RPN</strong><br>
+                        <span class="text-success">Basso (&lt; 40)</span> •
+                        <span class="text-warning">Medio (40 – 99)</span> •
+                        <span style="color:darkorange">Alto (100 – 199)</span> •
+                        <span class="text-danger">Critico (≥ 200)</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-3">
+              <button class="btn btn-success w-100" onclick="saveAuditToRegister()">Salva nel Risk Register</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="auditResult" class="mt-3" style="display:none">
+          <hr>
+          <h5>Report generato</h5>
+          <div id="auditResultHtml"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FMEA & Risk Register -->
+    <div id="fmea" class="section" style="display:none">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2>FMEA & Risk Register</h2>
+        <div class="small-muted">Ordina per RPN, visualizza dettagli e azioni</div>
+      </div>
+
+      <div class="card-elegant mb-3">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <button class="btn btn-outline-primary btn-sm" onclick="sortRegisterBy('rpn')">Ordina per RPN</button>
+            <button class="btn btn-outline-secondary btn-sm" onclick="sortRegisterBy('date')">Ordina per data</button>
+          </div>
+          <div>
+            <button class="btn btn-sm btn-light" onclick="exportJSON()">Esporta JSON</button>
+            <button class="btn btn-sm btn-outline-success" onclick="exportCSV()">Esporta CSV</button>
+          </div>
+        </div>
+
+        <div class="table-responsive mt-3">
+          <table class="table table-hover">
+            <thead class="table-light"><tr><th>#</th><th>Data</th><th>Descrizione</th><th>Root Cause (why5)</th><th>RPN</th><th>Stato</th><th>Azioni</th></tr></thead>
+            <tbody id="registerBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="row gy-3">
+        <div class="col-lg-6">
+          <div class="card-elegant p-3">
+            <h5>Pareto cause (occurrence)</h5>
+            <canvas id="paretoChart"></canvas>
+          </div>
+        </div>
+        <div class="col-lg-6">
+          <div class="card-elegant p-3">
+            <h5>Top 5 problematiche</h5>
+            <div id="top5Box"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MATRIX -->
+    <div id="matrix" class="section" style="display:none">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2>Matrice di Rischio (Gravità × Probabilità) 10×10</h2>
+        <div class="small-muted">Clicca una cella per vedere gli eventi posizionati</div>
+      </div>
+
+      <div class="card-elegant mb-3">
+        <div id="riskMatrix" class="matrix"></div>
+      </div>
+    </div>
+
+  
+<!-- SEGNALAZIONI -->
+    <div id="segnalazioni" class="section" style="display:none">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2>Segnalazioni eventi</h2>
+            <div class="small-muted">Compila la scheda di segnalazione evento</div>
+        </div>
+
+        <div class="card-elegant mb-4 p-3">
+            <form id="formSegnalazione">
+                <h5>Dove</h5>
+                <select class="form-select mb-3" id="luogo">
+                    <option value="">Seleziona luogo</option>
+                    <option>Reparto</option>
+                    <option>Sala operatoria</option>
+                    <option>Pronto soccorso</option>
+                    <option>Ambulatorio</option>
+                    <option>Altro</option>
+                </select>
+
+                <h5>Quando</h5>
+                <input type="date" class="form-control mb-2" id="data">
+                <input type="time" class="form-control mb-2" id="ora">
+                <textarea class="form-control mb-3" id="note" placeholder="Note aggiuntive"></textarea>
+
+                <h5>Chi</h5>
+                <input type="text" class="form-control mb-2" id="segnalatore" placeholder="Nome di chi segnala">
+                <div class="form-check"><input type="checkbox" class="form-check-input" id="paziente"><label class="form-check-label">Paziente</label></div>
+                <div class="form-check"><input type="checkbox" class="form-check-input" id="familiari"><label class="form-check-label">Familiari</label></div>
+                <div class="form-check"><input type="checkbox" class="form-check-input" id="personale"><label class="form-check-label">Personale</label></div>
+                <div class="form-check mb-3"><input type="checkbox" class="form-check-input" id="altro"><label class="form-check-label">Altro</label></div>
+
+                <h5>Che cosa</h5>
+                <textarea class="form-control mb-2" id="descrizione" placeholder="Descrizione dettagliata"></textarea>
+                <input type="text" class="form-control mb-2" id="tipologia_evento" placeholder="Tipologia di evento">
+                <input type="text" class="form-control mb-2" id="tipologia_prestazione" placeholder="Tipologia di prestazione">
+                <input type="text" class="form-control mb-3" id="oggetto" placeholder="Oggetto dell'evento">
+
+                <h5>Come</h5>
+
+                <h6>Fattori legati al paziente</h6>
+                <div class="form-check"><input type="checkbox" id="fatt_paz1"><label class="form-check-label">Grossa fragilità o infermità</label></div>
+                <div class="form-check"><input type="checkbox" id="fatt_paz2"><label class="form-check-label">Poca/mancata autonomia</label></div>
+                <div class="form-check"><input type="checkbox" id="fatt_paz3"><label class="form-check-label">Barriere linguistiche/culturali</label></div>
+<textarea class="form-control mb-2" id="note_paz" placeholder="Altro (specificare)"></textarea>
+
+                <h6>Fattori legati al personale</h6>
+                <div class="form-check"><input type="checkbox" id="fatt_pers1"><label class="form-check-label">Difficoltà nel seguire procedure</label></div>
+                <div class="form-check"><input type="checkbox" id="fatt_pers2"><label class="form-check-label">Fatica/stress</label></div>
+                <div class="form-check"><input type="checkbox" id="fatt_pers3"><label class="form-check-label">Regola non seguita</label></div>
+<textarea class="form-control mb-2" id="note_pers" placeholder="Altro (specificare)"></textarea>
+
+                <h6>Fattori legati al sistema</h6>
+                <div class="form-check"><input type="checkbox" id="fatt_sys1"><label class="form-check-label">Staff inadeguato</label></div>
+                <div class="form-check"><input type="checkbox" id="fatt_sys2"><label class="form-check-label">Gruppo nuovo</label></div>
+                <div class="form-check"><input type="checkbox" id="fatt_sys3"><label class="form-check-label">Elevato turn over</label></div>
+<textarea class="form-control mb-2" id="note_sys" placeholder="Altro (specificare)"></textarea>
+
+                <h6>Fattori che possono aver ridotto l'esito</h6>
+                <div class="form-check"><input type="checkbox" id="fatt_rid1"><label class="form-check-label">Individuazione precoce</label></div>
+                <div class="form-check"><input type="checkbox" id="fatt_rid2"><label class="form-check-label">Fortuna</label></div>
+                <div class="form-check"><input type="checkbox" id="fatt_rid3"><label class="form-check-label">Buona assistenza</label></div>
+<textarea class="form-control mb-2" id="note_rid" placeholder="Altro (specificare)"></textarea>
+
+                <button type="button" class="btn btn-success" onclick="salvaSegnalazione()">Salva segnalazione</button>
+            </form>
+        </div>
+
+        <div class="card-elegant p-3">
+            <h5>Elenco segnalazioni</h5>
+            <table class="table table-hover">
+                <thead><tr><th>Data</th><th>Luogo</th><th>Descrizione</th><th>Chi</th></tr></thead>
+                <tbody id="tabellaSegnalazioni"></tbody>
+            </table>
+        </div>
+    </div>
+
+
+  </div>
+
+  
+<script>
+// Store in localStorage
+    const STORAGE_KEY = 'rms_v2_store';
+    let store = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+    if(!store.reports) store.reports = [];
+
+    // UI helpers
+    function showSection(id){
+      document.querySelectorAll('.section').forEach(s=>s.style.display='none');
+      document.getElementById(id).style.display='block';
+      document.querySelectorAll('.sidebar a').forEach(a=>a.classList.remove('active'));
+      document.getElementById('link-'+id).classList.add('active');
+      if(id==='fmea') renderRegister();
+      if(id==='matrix') renderMatrix();
+    }
+
+    // Compute RPN
+    function computeRPN(){
+      const s = +document.getElementById('sev').value || 0;
+      const o = +document.getElementById('occ').value || 0;
+      const d = +document.getElementById('det').value || 0;
+      const rpn = s*o*d;
+      document.getElementById('rpnDisplay').innerText = rpn;
+      return rpn;
+    }
+
+    // Live update RPN when inputs change
+    ['sev','occ','det'].forEach(id=>document.getElementById(id).addEventListener('input', computeRPN));
+
+    // Generate analysis (simple rule-based + include whys)
+    function generateAudit(){
+      const type = document.getElementById('auditType').value;
+      const desc = document.getElementById('auditDesc').value.trim();
+      const whyList = [document.getElementById('why1').value.trim(), document.getElementById('why2').value.trim(), document.getElementById('why3').value.trim(), document.getElementById('why4').value.trim(), document.getElementById('why5').value.trim()].filter(Boolean);
+      const rpn = computeRPN();
+      // basic recommendations by type
+      const rec = [];
+      if(type==='farmaco'){ rec.push('Doppio controllo farmaci','Barcode scanning','Lista farmaci ad alto rischio'); }
+      if(type==='caduta'){ rec.push('Valutazione rischio cadute','Ausili antiscivolo','Sorveglianza intensificata'); }
+      if(type==='infezione'){ rec.push('Aderenza igiene mani','Audit DPI','Revisione protocolli sterilizzazione'); }
+      if(type==='procedura'){ rec.push('Checklist pre-procedura','Timeout operatori','Simulazioni'); }
+      if(type==='documentazione'){ rec.push('Standardizzazione moduli','Controllo qualità documentazione','SBAR handover'); }
+      if(type==='altro') rec.push('Analisi approfondita con RCA completa');
+
+      // Build HTML
+      const html = `
+        <p><strong>Tipologia:</strong> ${type} • <strong>RPN:</strong> ${rpn}</p>
+        <p><strong>Descrizione:</strong> ${escapeHtml(desc)}</p>
+        <h6>5 Perché</h6>
+        <ol>${whyList.map(w=>`<li>${escapeHtml(w)}</li>`).join('')}</ol>
+        <h6>Raccomandazioni</h6>
+        <ul>${rec.map(r=>`<li>${escapeHtml(r)}</li>`).join('')}</ul>
+      `;
+
+      document.getElementById('auditResultHtml').innerHTML = html;
+      document.getElementById('auditResult').style.display = 'block';
+
+      // Keep temp lastAudit
+      window._lastAudit = {
+        id: Date.now(),
+        date: document.getElementById('auditDate').value || (new Date()).toISOString().slice(0,10),
+        ward: document.getElementById('auditWard').value || '-',
+        type, desc, whyList, severity:+document.getElementById('sev').value||0, occurrence:+document.getElementById('occ').value||0, detection:+document.getElementById('det').value||0,
+        rpn, category: type, status: 'Aperto'
+      };
+    }
+
+    function resetAuditForm(){
+      ['auditDate','auditWard','auditDesc','why1','why2','why3','why4','why5'].forEach(id=>document.getElementById(id).value='');
+      ['sev','occ','det'].forEach(id=>document.getElementById(id).value='5');
+      computeRPN();
+      document.getElementById('auditResult').style.display='none';
+      window._lastAudit = null;
+    }
+
+    // Save audit into register (and persist)
+    function saveAuditToRegister(){
+      if(!window._lastAudit){ alert('Genera prima l\'audit'); return; }
+      store.reports.push(window._lastAudit);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+      renderRegister();
+      alert('Audit salvato nel Risk Register');
+      showSection('fmea');
+    }
+
+    // Render register
+    function renderRegister(sortKey){
+      const tbody = document.getElementById('registerBody'); tbody.innerHTML = '';
+      let reports = [...store.reports];
+      if(sortKey==='rpn') reports.sort((a,b)=>b.rpn - a.rpn);
+      else reports.sort((a,b)=>b.id - a.id);
+      reports.forEach((r,i)=>{
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${i+1}</td><td>${escapeHtml(r.date)}</td><td style="max-width:300px">${escapeHtml(r.desc)}</td><td>${escapeHtml((r.whyList && r.whyList[ r.whyList.length-1 ]) || '-')}</td><td>${r.rpn}</td><td>${r.status}</td><td><button class='btn btn-sm btn-outline-primary' onclick='openReport(${r.id})'>Dettagli</button></td>`;
+        tbody.appendChild(tr);
+      });
+      renderPareto(); renderTop5(); renderMatrix();
+    }
+
+    function sortRegisterBy(key){ renderRegister(key); }
+
+    // Details modal-like (simple)
+    function openReport(id){
+      const r = store.reports.find(x=>x.id===id);
+      if(!r) return alert('Non trovato');
+      const html = `
+        <h5>Dettaglio Report</h5>
+        <p><strong>Data:</strong> ${escapeHtml(r.date)} • <strong>Reparto:</strong> ${escapeHtml(r.ward)}</p>
+        <p><strong>Descrizione:</strong> ${escapeHtml(r.desc)}</p>
+        <h6>5 Perché</h6>
+        <ol>${(r.whyList||[]).map(w=>`<li>${escapeHtml(w)}</li>`).join('')}</ol>
+        <p><strong>RPN:</strong> ${r.rpn} (S:${r.severity} × O:${r.occurrence} × D:${r.detection})</p>
+      `;
+      const w = window.open('','_blank','width=700,height=600');
+      w.document.write(`<html><head><title>Report</title></head><body style="font-family:Arial;padding:16px">${html}</body></html>`);
+      w.document.close();
+    }
+
+    // Pareto
+    let paretoChart;
+    function renderPareto(){
+      const counts = {};
+      store.reports.forEach(r=>{ counts[r.type] = (counts[r.type]||0)+1 });
+      const labels = Object.keys(counts);
+      const data = labels.map(l=>counts[l]);
+      const ctx = document.getElementById('paretoChart').getContext('2d');
+      if(paretoChart) paretoChart.destroy();
+      paretoChart = new Chart(ctx,{ type:'bar', data:{ labels, datasets:[{ label:'Occorrenze', data }] }, options:{ responsive:true } });
+    }
+
+    function renderTop5(){
+      const div = document.getElementById('top5Box'); div.innerHTML='';
+      const sorted = [...store.reports].sort((a,b)=>b.rpn - a.rpn).slice(0,5);
+      if(!sorted.length){ div.innerHTML='<div class="small-muted">Nessun report</div>'; return; }
+      sorted.forEach((r,i)=>{
+        const el = document.createElement('div'); el.className='mb-2';
+        el.innerHTML = `<strong>${i+1}. ${escapeHtml(r.desc.slice(0,80))}</strong><div class='small-muted'>RPN: ${r.rpn} • Root: ${escapeHtml((r.whyList && r.whyList[r.whyList.length-1]) || '-')}</div>`;
+        div.appendChild(el);
+      });
+    }
+
+    // Matrix 10x10
+    function renderMatrix(){
+      const container = document.getElementById('riskMatrix'); container.innerHTML='';
+      // create 10..1 on Y (severity) and 1..10 on X (occurrence)
+      for(let sev=10; sev>=1; sev--) {
+        for(let occ=1; occ<=10; occ++){
+          const cell = document.createElement('div'); cell.className='cell';
+          const matches = store.reports.filter(r=>r.severity===sev && r.occurrence===occ);
+          // compute color by max RPN among matches or score
+          let color = '#c7f0d6'; // default greenish
+          if(matches.length){
+            const maxRpn = Math.max(...matches.map(m=>m.rpn));
+            if(maxRpn>=200) color = '#e74c3c';
+            else if(maxRpn>=100) color = '#ff8c42';
+            else if(maxRpn>=40) color = '#ffeb3b';
+            else color = '#9be89b';
+          } else {
+            const baseScore = sev*occ; if(baseScore>=70) color='#f6b8b8'; else if(baseScore>=40) color='#ffe7b5'; else color='#e6f9e9';
+          }
+          cell.style.background = color;
+          cell.innerHTML = `<div style="text-align:center"><small>S${sev}-O${occ}</small><br><span class='badge-point'>${matches.length?matches.length:''}</span></div>`;
+          if(matches.length){
+            cell.style.cursor='pointer';
+            cell.title = matches.map(m=>`${m.date} • RPN:${m.rpn} • ${m.desc.slice(0,60)}`).join('\n---\n');
+            cell.addEventListener('click',()=>{ openMatrixCell(sev,occ); });
+          }
+          container.appendChild(cell);
+        }
+      }
+    }
+
+    function openMatrixCell(sev,occ){
+      const matches = store.reports.filter(r=>r.severity===sev && r.occurrence===occ);
+      if(!matches.length) return alert('Nessun evento in questa cella');
+      const html = matches.map(m=>`<div style="margin-bottom:10px"><strong>${escapeHtml(m.date)}</strong> — RPN: ${m.rpn}<br>${escapeHtml(m.desc)}<br><em>Root:</em> ${escapeHtml((m.whyList && m.whyList[m.whyList.length-1])||'-')}</div>`).join('');
+      const w = window.open('','_blank','width=720,height=600'); w.document.write(`<html><body style="font-family:Arial;padding:16px">${html}</body></html>`); w.document.close();
+    }
+
+    // Utilities: export JSON, CSV
+    function exportJSON(){ const data = JSON.stringify(store,null,2); const blob=new Blob([data],{type:'application/json'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='rms_backup.json'; a.click(); URL.revokeObjectURL(url); }
+    function exportCSV(){ if(!store.reports.length) return alert('Nessun report'); const cols=['id','date','ward','type','desc','severity','occurrence','detection','rpn']; const rows = store.reports.map(r => cols.map(c=>`"${(r[c]||'')+''}"`).join(',')).join('\n'); const csv = cols.join(',')+'\n'+rows; const blob=new Blob([csv],{type:'text/csv'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='rms_reports.csv'; a.click(); URL.revokeObjectURL(url); }
+
+    function clearAll(){ if(!confirm('Reset locale: elimini tutti i report salvati?')) return; store = {reports:[]}; localStorage.removeItem(STORAGE_KEY); renderRegister(); renderMatrix(); }
+
+    function saveToLocal(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(store)); }
+
+    function escapeHtml(s){ if(!s) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+    // Save audit from form to store directly (with manual RPN inputs in form)
+    function saveAuditToRegister(){
+      if(!window._lastAudit) return alert('Genera prima l\'audit');
+      store.reports.push(window._lastAudit);
+      saveToLocal();
+      renderRegister(); renderMatrix();
+      alert('Audit salvato. Vai a FMEA & Risk Register per dettagli.');
+    }
+
+    // On page load: load store
+    window.addEventListener('load',()=>{
+      const data = localStorage.getItem(STORAGE_KEY);
+      if(data) store = JSON.parse(data);
+      else store = {reports:[]};
+      computeRPN();
+      renderRegister(); renderMatrix();
+      // default show audit
+      showSection('audit');
+    });
+  
+function salvaSegnalazione(){
+  const segnalazione = {
+    luogo: document.getElementById('luogo').value,
+    data: document.getElementById('data').value,
+    ora: document.getElementById('ora').value,
+    note: document.getElementById('note').value,
+    segnalatore: document.getElementById('segnalatore').value,
+    descrizione: document.getElementById('descrizione').value,
+    tipologia_evento: document.getElementById('tipologia_evento').value,
+    tipologia_prestazione: document.getElementById('tipologia_prestazione').value,
+    oggetto: document.getElementById('oggetto').value
+  };
+  let lista = JSON.parse(localStorage.getItem('segnalazioni')||'[]');
+  lista.push(segnalazione);
+  localStorage.setItem('segnalazioni', JSON.stringify(lista));
+  renderSegnalazioni();
+}
+
+
+    function salvaSegnalazione() {
+        const segnalazione = {
+            luogo: document.getElementById('luogo').value,
+            data: document.getElementById('data').value,
+            ora: document.getElementById('ora').value,
+            note: document.getElementById('note').value,
+            segnalatore: document.getElementById('segnalatore').value,
+            descrizione: document.getElementById('descrizione').value,
+            tipologia_evento: document.getElementById('tipologia_evento').value,
+            tipologia_prestazione: document.getElementById('tipologia_prestazione').value,
+            oggetto: document.getElementById('oggetto').value,
+            fattori: []
+        };
+
+        // Paziente
+        if (document.getElementById('fatt_paz1').checked) segnalazione.fattori.push("Fragilità/Infermità");
+        if (document.getElementById('fatt_paz2').checked) segnalazione.fattori.push("Mancata autonomia");
+        if (document.getElementById('fatt_paz3').checked) segnalazione.fattori.push("Barriere linguistiche/culturali");
+        if (document.getElementById('note_paz').value) segnalazione.fattori.push("Altro paziente: " + document.getElementById('note_paz').value);
+
+        // Personale
+        if (document.getElementById('fatt_pers1').checked) segnalazione.fattori.push("Difficoltà procedure");
+        if (document.getElementById('fatt_pers2').checked) segnalazione.fattori.push("Fatica/stress");
+        if (document.getElementById('fatt_pers3').checked) segnalazione.fattori.push("Regola non seguita");
+        if (document.getElementById('note_pers').value) segnalazione.fattori.push("Altro personale: " + document.getElementById('note_pers').value);
+
+        // Sistema
+        if (document.getElementById('fatt_sys1').checked) segnalazione.fattori.push("Staff inadeguato");
+        if (document.getElementById('fatt_sys2').checked) segnalazione.fattori.push("Gruppo nuovo");
+        if (document.getElementById('fatt_sys3').checked) segnalazione.fattori.push("Elevato turn over");
+        if (document.getElementById('note_sys').value) segnalazione.fattori.push("Altro sistema: " + document.getElementById('note_sys').value);
+
+        // Riduttivi
+        if (document.getElementById('fatt_rid1').checked) segnalazione.fattori.push("Individuazione precoce");
+        if (document.getElementById('fatt_rid2').checked) segnalazione.fattori.push("Fortuna");
+        if (document.getElementById('fatt_rid3').checked) segnalazione.fattori.push("Buona assistenza");
+        if (document.getElementById('note_rid').value) segnalazione.fattori.push("Altro riduttivi: " + document.getElementById('note_rid').value);
+
+        let lista = JSON.parse(localStorage.getItem('segnalazioni') || '[]');
+        lista.push(segnalazione);
+        localStorage.setItem('segnalazioni', JSON.stringify(lista));
+        localStorage.setItem('lastSegnalazione', JSON.stringify(segnalazione));
+
+        renderSegnalazioni();
+    }
+
+
+function mostraSintesiSegnalazione(){
+  const data = localStorage.getItem('lastSegnalazione');
+  if(!data){ document.getElementById('segnalazioneSintesi').style.display='none'; return; }
+  const s = JSON.parse(data);
+  document.getElementById('s_dove').innerText = s.luogo||'';
+  document.getElementById('s_quando').innerText = (s.data||'') + ' ' + (s.ora||'');
+  document.getElementById('s_note').innerText = s.note||'';
+  document.getElementById('s_chi').innerText = s.segnalatore||'';
+  document.getElementById('s_descrizione').innerText = s.descrizione||'';
+  document.getElementById('s_tipologia').innerText = s.tipologia_evento||'';
+  document.getElementById('s_prestazione').innerText = s.tipologia_prestazione||'';
+  document.getElementById('s_oggetto').innerText = s.oggetto||'';
+  document.getElementById('s_fattori').innerText = (s.fattori||[]).join(", ");
+  document.getElementById('segnalazioneSintesi').style.display='block';
+}
+
+const oldShowSection = showSection;
+showSection = function(id){
+  oldShowSection(id);
+  if(id==='audit'){ mostraSintesiSegnalazione(); }
+}
+
+
+function renderSegnalazioni(){
+  const lista = JSON.parse(localStorage.getItem('segnalazioni')||'[]');
+  const tbody = document.getElementById('tabellaSegnalazioni');
+  if(!tbody) return;
+  tbody.innerHTML = '';
+  lista.forEach(s=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${s.data} ${s.ora}</td><td>${s.luogo}</td><td>${s.descrizione}</td><td>${s.segnalatore}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+</script>
+</body>
+</html>
